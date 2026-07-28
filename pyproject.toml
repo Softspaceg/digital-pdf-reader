@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "digital-pdf-reader"
+version = "0.1.0"
+description = "Read a digital PDF into cleaned, structured text (tables interleaved with layout-preserving text), shared across OCR/document pipelines"
+requires-python = ">=3.10"
+dependencies = [
+    "pdfplumber>=0.11.0",
+]
+
+[project.optional-dependencies]
+fitz = [
+    "pymupdf>=1.24.0",
+]
+dev = [
+    "pytest>=8.3.0",
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/digital_pdf_reader"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
