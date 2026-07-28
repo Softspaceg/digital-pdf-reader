@@ -40,6 +40,10 @@ to any of that logic happens once and takes effect in both.
 - `digital_pdf_reader.fitz_text_reader` — `read_with_fitz`: a PyMuPDF-backed
   plain-text fallback for when `DocumentReader` returns empty on a page
   already known digital. **Requires the `fitz` extra.**
+- `digital_pdf_reader.field_value_cleaner` — `FieldValueCleaner`: strips
+  Arabic characters and markdown markup from a single field/cell value, for
+  consumers whose own structured output must be English-only. **Opt-in
+  only** — see "Why FieldValueCleaner stays opt-in" below.
 
 ## Why no PyMuPDF for digital detection
 
@@ -65,14 +69,18 @@ by `digital_pdf_reader/__init__.py`, so a plain `pip install
 digital-pdf-reader` never touches PyMuPDF — only a consumer that installs
 the `fitz` extra and explicitly imports from that module pulls it in.
 
-## What's deliberately *not* here
+## Why FieldValueCleaner stays opt-in
 
 Stripping Arabic characters or markdown markup from a single field/cell
 value (as opposed to a whole document's text) is a downstream, schema-
-specific business rule — e.g. an app whose structured output should only
-ever contain English values — not a property of "reading a digital PDF."
-Consumers that need that should layer it on top of this package's output in
-their own codebase.
+specific business rule, not a universal "reading a digital PDF" fix — a
+consumer whose structured output must be English-only wants it, but a
+consumer reading bilingual EN/AR documents (e.g. a UAE property/legal
+contract) needs Arabic preserved in the text it hands to an LLM. Both
+`DocumentReader` and `TextCleaner`'s defaults leave Arabic untouched, and
+neither calls `FieldValueCleaner` — it only runs where a consumer explicitly
+constructs and calls it on its own extracted field values, never as a side
+effect of reading a document.
 
 ## Using this from another project
 
@@ -80,15 +88,15 @@ Not published to PyPI — install straight from this repo, pinned to a tag:
 
 ```
 # requirements.txt
-git+https://github.com/Softspaceg/digital-pdf-reader.git@v0.3.0
+git+https://github.com/Softspaceg/digital-pdf-reader.git@v0.4.0
 # add the fitz extra only if you want read_with_fitz's fallback text reader:
-digital-pdf-reader[fitz] @ git+https://github.com/Softspaceg/digital-pdf-reader.git@v0.3.0
+digital-pdf-reader[fitz] @ git+https://github.com/Softspaceg/digital-pdf-reader.git@v0.4.0
 ```
 
 ```toml
 # pyproject.toml
 dependencies = [
-    "digital-pdf-reader @ git+https://github.com/Softspaceg/digital-pdf-reader.git@v0.3.0",
+    "digital-pdf-reader @ git+https://github.com/Softspaceg/digital-pdf-reader.git@v0.4.0",
 ]
 ```
 
