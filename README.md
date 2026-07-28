@@ -30,26 +30,33 @@ to any of that logic happens once and takes effect in both.
   pdfplumber already parses a page's content stream into character objects
   (`page.chars`) as a byproduct of text extraction, so a scanned page with no
   embedded text layer produces zero chars — a more direct signal than any
-  ratio computed after the fact from a string. That check is combined with a
-  printable/letter-ratio check over the page's text, to filter out pages
-  whose only "chars" are a handful of garbage/placeholder glyphs.
+  ratio computed after the fact from a string. That's combined with two
+  further checks over the page's text: a printable/letter-ratio check (to
+  filter out pages whose only "chars" are a handful of garbage/placeholder
+  glyphs), and a text-area-ratio check via `page.extract_words()` bounding
+  boxes (to filter out a scanned poster/photo page whose only digital text
+  is a caption or footer long enough to clear the char-count check on its
+  own, but covers a negligible fraction of the page).
 - `digital_pdf_reader.fitz_text_reader` — `read_with_fitz`: a PyMuPDF-backed
   plain-text fallback for when `DocumentReader` returns empty on a page
   already known digital. **Requires the `fitz` extra.**
 
 ## Why no PyMuPDF for digital detection
 
-An earlier version of this package also shipped a PyMuPDF/fitz-based
-"geometry" detector (checking whether text covers a real fraction of a
-page's physical area), reasoning that it was more accurate against a
-specific false positive: an isolated stamp/watermark with real digital text
-on an otherwise-scanned page. In practice, `page.chars` plus the existing
-char-count threshold already screens out exactly that case — a stamp or
-watermark rarely clears `min_chars` on its own — so the geometry check
-bought no real accuracy over what pdfplumber already gives for free, at the
-cost of a second dependency (PyMuPDF, AGPL-3.0/Artifex Commercial
-dual-licensed) and a second file open. `DigitalDetector` is dependency-free
-and is the only detector this package ships.
+An earlier version of this package shipped a PyMuPDF/fitz-based "geometry"
+detector (checking whether text covers a real fraction of a page's physical
+area) alongside a pdfplumber-only text-ratio detector, reasoning that the
+area check was needed for accuracy but required PyMuPDF's AGPL-3.0/Artifex
+Commercial license. That turned out to be a false trade-off: pdfplumber's
+own `page.extract_words()` already returns each word's bounding box for
+free, as a byproduct of the extraction work this package does anyway — so
+the same area-ratio check can be computed without any extra dependency.
+Char-count alone screens out a short stamp/watermark, but not a longer
+caption/footer on a scanned poster or photo page that clears `min_chars` on
+its own; the area-ratio check catches that case specifically (see
+`test_caption_on_mostly_image_page_is_not_digital` in the test suite).
+`DigitalDetector` is dependency-free and is the only detector this package
+ships.
 
 `fitz_text_reader` is unrelated to detection — it's a fallback for the
 separate concern of *extracting* text once a page is already known digital,
@@ -73,15 +80,15 @@ Not published to PyPI — install straight from this repo, pinned to a tag:
 
 ```
 # requirements.txt
-git+https://github.com/Softspaceg/digital-pdf-reader.git@v0.2.0
+git+https://github.com/Softspaceg/digital-pdf-reader.git@v0.3.0
 # add the fitz extra only if you want read_with_fitz's fallback text reader:
-digital-pdf-reader[fitz] @ git+https://github.com/Softspaceg/digital-pdf-reader.git@v0.2.0
+digital-pdf-reader[fitz] @ git+https://github.com/Softspaceg/digital-pdf-reader.git@v0.3.0
 ```
 
 ```toml
 # pyproject.toml
 dependencies = [
-    "digital-pdf-reader @ git+https://github.com/Softspaceg/digital-pdf-reader.git@v0.2.0",
+    "digital-pdf-reader @ git+https://github.com/Softspaceg/digital-pdf-reader.git@v0.3.0",
 ]
 ```
 

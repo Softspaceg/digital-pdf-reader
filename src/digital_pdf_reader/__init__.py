@@ -19,7 +19,7 @@ from digital_pdf_reader.document_reader import DocumentReader, DocumentReaderCon
 from digital_pdf_reader.pdfplumber_provider import PdfPlumberProvider
 from digital_pdf_reader.text_cleaner import TextCleaner
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "BlockKind",
