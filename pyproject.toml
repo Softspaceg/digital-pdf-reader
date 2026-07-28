@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "digital-pdf-reader"
-version = "0.1.0"
+version = "0.2.0"
 description = "Read a digital PDF into cleaned, structured text (tables interleaved with layout-preserving text), shared across OCR/document pipelines"
 requires-python = ">=3.10"
 dependencies = [

@@ -25,39 +25,38 @@ to any of that logic happens once and takes effect in both.
   header row across consecutive one-record tables are merged into a single
   grid. Pass `pages=[1]` and `detect_tables=False` for a fast single-page,
   no-table-search read.
-- `digital_pdf_reader.digital_detector` — `TextRatioDigitalDetector`: digital-
-  vs-scanned detection from already-extracted text (printable/letter-
-  character ratios). Dependency-free, but has no physical-layout signal.
-- `digital_pdf_reader.fitz_digital_detector` — `GeometryDigitalDetector`:
-  digital-vs-scanned detection via PyMuPDF block geometry (requires text to
-  cover a real fraction of the page's physical area, not just pass a
-  character-ratio check). **Requires the `fitz` extra.**
+- `digital_pdf_reader.digital_detector` — `DigitalDetector`: digital-vs-scanned
+  detection. Checks the first page only by default (`pages_to_check=1`):
+  pdfplumber already parses a page's content stream into character objects
+  (`page.chars`) as a byproduct of text extraction, so a scanned page with no
+  embedded text layer produces zero chars — a more direct signal than any
+  ratio computed after the fact from a string. That check is combined with a
+  printable/letter-ratio check over the page's text, to filter out pages
+  whose only "chars" are a handful of garbage/placeholder glyphs.
 - `digital_pdf_reader.fitz_text_reader` — `read_with_fitz`: a PyMuPDF-backed
   plain-text fallback for when `DocumentReader` returns empty on a page
   already known digital. **Requires the `fitz` extra.**
 
-## Which digital detector should I use?
+## Why no PyMuPDF for digital detection
 
-`GeometryDigitalDetector` is the **recommended, more accurate** detector — the
-physical-area check it does is a structural guard against a real false-
-positive case that `TextRatioDigitalDetector` cannot express: an isolated
-stamp, watermark, or footer with real digital text on an otherwise-scanned
-page can pass a pure character-ratio check even though the page is a scan.
-It also lets a caller decide up front, before running `DocumentReader`'s
-heavier table-detecting extraction, that a page is scanned and skip that
-work entirely.
+An earlier version of this package also shipped a PyMuPDF/fitz-based
+"geometry" detector (checking whether text covers a real fraction of a
+page's physical area), reasoning that it was more accurate against a
+specific false positive: an isolated stamp/watermark with real digital text
+on an otherwise-scanned page. In practice, `page.chars` plus the existing
+char-count threshold already screens out exactly that case — a stamp or
+watermark rarely clears `min_chars` on its own — so the geometry check
+bought no real accuracy over what pdfplumber already gives for free, at the
+cost of a second dependency (PyMuPDF, AGPL-3.0/Artifex Commercial
+dual-licensed) and a second file open. `DigitalDetector` is dependency-free
+and is the only detector this package ships.
 
-The only reason to prefer `TextRatioDigitalDetector` instead is that
-`GeometryDigitalDetector` requires PyMuPDF, which is **dual-licensed
-AGPL-3.0 / Artifex Commercial** — resolve that license for your project
-before depending on it commercially. If it's unacceptable,
-`TextRatioDigitalDetector` is a documented, lower-fidelity fallback, not an
-equally-good alternative.
-
-Neither `fitz_digital_detector` nor `fitz_text_reader` is imported by
-`digital_pdf_reader/__init__.py`, so a plain `pip install digital-pdf-reader`
-never touches PyMuPDF — only a consumer that installs the `fitz` extra and
-explicitly imports from those two modules pulls it in.
+`fitz_text_reader` is unrelated to detection — it's a fallback for the
+separate concern of *extracting* text once a page is already known digital,
+for the rare case pdfplumber's extraction itself fails. It is not imported
+by `digital_pdf_reader/__init__.py`, so a plain `pip install
+digital-pdf-reader` never touches PyMuPDF — only a consumer that installs
+the `fitz` extra and explicitly imports from that module pulls it in.
 
 ## What's deliberately *not* here
 
@@ -74,22 +73,28 @@ Not published to PyPI — install straight from this repo, pinned to a tag:
 
 ```
 # requirements.txt
-git+https://github.com/Softspaceg/digital-pdf-reader.git@v0.1.0
-# add the fitz extra if you want GeometryDigitalDetector / read_with_fitz:
-digital-pdf-reader[fitz] @ git+https://github.com/Softspaceg/digital-pdf-reader.git@v0.1.0
+git+https://github.com/Softspaceg/digital-pdf-reader.git@v0.2.0
+# add the fitz extra only if you want read_with_fitz's fallback text reader:
+digital-pdf-reader[fitz] @ git+https://github.com/Softspaceg/digital-pdf-reader.git@v0.2.0
 ```
 
 ```toml
 # pyproject.toml
 dependencies = [
-    "digital-pdf-reader[fitz] @ git+https://github.com/Softspaceg/digital-pdf-reader.git@v0.1.0",
+    "digital-pdf-reader @ git+https://github.com/Softspaceg/digital-pdf-reader.git@v0.2.0",
 ]
 ```
 
 ```python
-from digital_pdf_reader import DocumentReader, DocumentReaderConfig, PdfPlumberProvider, TextCleaner
-from digital_pdf_reader.fitz_digital_detector import GeometryDigitalDetector
+from digital_pdf_reader import (
+    DigitalDetector,
+    DocumentReader,
+    DocumentReaderConfig,
+    PdfPlumberProvider,
+    TextCleaner,
+)
 
+is_digital = DigitalDetector().is_digital(raw_bytes)
 reader = DocumentReader(PdfPlumberProvider(), TextCleaner(), DocumentReaderConfig())
 content = reader.read(raw_bytes)
 print(content.full_text)
