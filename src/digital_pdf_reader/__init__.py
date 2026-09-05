@@ -5,12 +5,25 @@ is digital or scanned in the first place.
 
 Base install depends only on pdfplumber -- including digital detection
 (DigitalDetector), which needs no PyMuPDF/fitz dependency at all (see
-digital_detector.py for why). The only thing gated behind the `fitz` extra
-is fitz_text_reader.read_with_fitz, an optional fallback for when
-DocumentReader/pdfplumber fails to extract text from a page already known
-digital:
+digital_detector.py for why). Two modules cost extra dependencies and are
+therefore imported as submodules rather than from this package root, so a
+base install never pays for what it doesn't use:
 
-    from digital_pdf_reader.fitz_text_reader import read_with_fitz
+    `fitz` extra -- an optional fallback for when DocumentReader/pdfplumber
+    fails to extract text from a page already known digital:
+
+        from digital_pdf_reader.fitz_text_reader import read_with_fitz
+
+    `font-remap` extra -- recovers text from a PDF whose ToUnicode table
+    disagrees with its embedded fonts' own cmap tables, which extracts as
+    scrambled characters (most visibly on Arabic):
+
+        from digital_pdf_reader.font_remap import font_corrected_document_text
+
+PageSelection is the one page-selection contract every reader here shares --
+DocumentReader, read_with_fitz and font_corrected_document_text all take it,
+so a document read for one purpose and re-read for another covers the same
+pages by construction.
 
 FieldValueCleaner is exported but never called by anything else in this
 package -- it's an opt-in policy (strip Arabic/markdown from a single field
@@ -22,10 +35,11 @@ from digital_pdf_reader.blocks import BlockKind, DocumentContent, PageBlock
 from digital_pdf_reader.digital_detector import DigitalDetector, DigitalDetectorConfig
 from digital_pdf_reader.document_reader import DocumentReader, DocumentReaderConfig
 from digital_pdf_reader.field_value_cleaner import FieldValueCleaner
+from digital_pdf_reader.page_selection import PageSelection
 from digital_pdf_reader.pdfplumber_provider import PdfPlumberProvider
 from digital_pdf_reader.text_cleaner import TextCleaner
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 __all__ = [
     "BlockKind",
@@ -36,6 +50,7 @@ __all__ = [
     "DocumentReaderConfig",
     "FieldValueCleaner",
     "PageBlock",
+    "PageSelection",
     "PdfPlumberProvider",
     "TextCleaner",
     "__version__",

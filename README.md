@@ -16,15 +16,19 @@ to any of that logic happens once and takes effect in both.
 - `digital_pdf_reader.text_cleaner` — `TextCleaner`: doubled-character repair
   (`"CCoonnttrraacctt"` → `"Contract"`), Arabic visual-order repair, and
   cid/control-character stripping.
+- `digital_pdf_reader.page_selection` — `PageSelection`: which pages a read
+  covers. Explicit `pages` win over a `max_pages` prefix; neither means every
+  page. Every reader here takes one, so a document read for one purpose and
+  re-read for another covers the same pages by construction.
 - `digital_pdf_reader.document_reader` — `DocumentReader.read(raw_bytes,
-  max_pages=None, pages=None, detect_tables=True) -> DocumentContent`. Reads
+  selection=None, detect_tables=True) -> DocumentContent`. Reads
   page by page, interleaving detected tables with the surrounding text in
   top-to-bottom order; falls back to plain layout-preserving text for a page
   when a detected "table" is actually a dense form region (a cell over
   `form_layout_cell_threshold` characters). Tables that repeat the same
   header row across consecutive one-record tables are merged into a single
-  grid. Pass `pages=[1]` and `detect_tables=False` for a fast single-page,
-  no-table-search read.
+  grid. Pass `PageSelection.of([1])` and `detect_tables=False` for a fast
+  single-page, no-table-search read.
 - `digital_pdf_reader.digital_detector` — `DigitalDetector`: digital-vs-scanned
   detection. Checks the first page only by default (`pages_to_check=1`):
   pdfplumber already parses a page's content stream into character objects
@@ -40,6 +44,15 @@ to any of that logic happens once and takes effect in both.
 - `digital_pdf_reader.fitz_text_reader` — `read_with_fitz`: a PyMuPDF-backed
   plain-text fallback for when `DocumentReader` returns empty on a page
   already known digital. **Requires the `fitz` extra.**
+- `digital_pdf_reader.font_remap` — `font_corrected_document_text`: recovers
+  text from a PDF whose ToUnicode table disagrees with its embedded fonts'
+  own cmap tables, which extracts as scrambled characters (most visibly on
+  Arabic). Reads each character's real glyph ID via PyMuPDF's `get_texttrace`,
+  resolves it through the embedded font's own cmap (fontTools), and reorders
+  each line with `python-bidi`. Returns `(text, corrected_line_count)`; a
+  count of 0 means the fonts had no usable cmap to correct from (typically
+  subsetted fonts) — treat that as "not recoverable this way". **Requires the
+  `font-remap` extra.**
 - `digital_pdf_reader.field_value_cleaner` — `FieldValueCleaner`: strips
   Arabic characters and markdown markup from a single field/cell value, for
   consumers whose own structured output must be English-only. **Opt-in
@@ -62,12 +75,14 @@ its own; the area-ratio check catches that case specifically (see
 `DigitalDetector` is dependency-free and is the only detector this package
 ships.
 
-`fitz_text_reader` is unrelated to detection — it's a fallback for the
-separate concern of *extracting* text once a page is already known digital,
-for the rare case pdfplumber's extraction itself fails. It is not imported
-by `digital_pdf_reader/__init__.py`, so a plain `pip install
-digital-pdf-reader` never touches PyMuPDF — only a consumer that installs
-the `fitz` extra and explicitly imports from that module pulls it in.
+`fitz_text_reader` and `font_remap` are unrelated to detection — both address
+the separate concern of *extracting* text once a page is already known
+digital, one for the rare case pdfplumber's extraction fails outright, the
+other for when it succeeds but returns scrambled characters. Neither is
+imported by `digital_pdf_reader/__init__.py`, so a plain `pip install
+digital-pdf-reader` never touches PyMuPDF, fontTools or python-bidi — only a
+consumer that installs the matching extra and explicitly imports from that
+module pulls them in.
 
 ## Why FieldValueCleaner stays opt-in
 
@@ -88,15 +103,16 @@ Not published to PyPI — install straight from this repo, pinned to a tag:
 
 ```
 # requirements.txt
-git+https://github.com/Softspaceg/digital-pdf-reader.git@v0.4.0
-# add the fitz extra only if you want read_with_fitz's fallback text reader:
-digital-pdf-reader[fitz] @ git+https://github.com/Softspaceg/digital-pdf-reader.git@v0.4.0
+git+https://github.com/Softspaceg/digital-pdf-reader.git@v0.5.0
+# add extras only for what you use: `fitz` for read_with_fitz's fallback
+# text reader, `font-remap` for font_corrected_document_text:
+digital-pdf-reader[fitz,font-remap] @ git+https://github.com/Softspaceg/digital-pdf-reader.git@v0.5.0
 ```
 
 ```toml
 # pyproject.toml
 dependencies = [
-    "digital-pdf-reader @ git+https://github.com/Softspaceg/digital-pdf-reader.git@v0.4.0",
+    "digital-pdf-reader @ git+https://github.com/Softspaceg/digital-pdf-reader.git@v0.5.0",
 ]
 ```
 
@@ -128,6 +144,6 @@ Docker images need `git` installed in the build stage for pip to clone this
 ## Development
 
 ```bash
-pip install -e ".[dev,fitz]"
+pip install -e ".[dev,fitz,font-remap]"
 pytest
 ```
