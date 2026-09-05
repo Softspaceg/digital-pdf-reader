@@ -16,10 +16,10 @@ from digital_pdf_reader.document_reader import (
     DocumentReaderConfig,
     _cell,
     _has_content,
-    _resolve_page_indices,
     _table_to_markdown,
     _TableCandidate,
 )
+from digital_pdf_reader.page_selection import PageSelection
 from digital_pdf_reader.pdfplumber_provider import PdfPlumberProvider
 from digital_pdf_reader.text_cleaner import TextCleaner
 
@@ -94,29 +94,6 @@ class TestHasContent:
 
     def test_any_cell_with_text_has_content(self):
         assert _has_content([["", ""], ["value", ""]]) is True
-
-
-class TestResolvePageIndices:
-    def test_no_pages_no_cap_reads_everything(self):
-        assert _resolve_page_indices(page_count=4, max_pages=None, pages=None) == [0, 1, 2, 3]
-
-    def test_no_pages_falls_back_to_front_n_cap(self):
-        assert _resolve_page_indices(page_count=10, max_pages=3, pages=None) == [0, 1, 2]
-
-    def test_no_pages_capped_by_page_count(self):
-        assert _resolve_page_indices(page_count=2, max_pages=6, pages=None) == [0, 1]
-
-    def test_explicit_pages_converted_to_0_based(self):
-        assert _resolve_page_indices(page_count=10, max_pages=6, pages=[2, 4]) == [1, 3]
-
-    def test_out_of_range_pages_dropped(self):
-        assert _resolve_page_indices(page_count=3, max_pages=6, pages=[1, 6, 0]) == [0]
-
-    def test_duplicates_and_order_normalized(self):
-        assert _resolve_page_indices(page_count=10, max_pages=6, pages=[5, 1, 1]) == [0, 4]
-
-    def test_empty_pages_list_falls_back_to_cap(self):
-        assert _resolve_page_indices(page_count=10, max_pages=2, pages=[]) == [0, 1]
 
 
 class TestIsFormLayout:
@@ -303,19 +280,19 @@ class TestDocumentReaderIntegration:
     ):
         reader = DocumentReader(pdfplumber_provider, cleaner, reader_config)
 
-        content = reader.read(sample_pdf_bytes, pages=[1], detect_tables=False)
+        content = reader.read(sample_pdf_bytes, PageSelection.of([1]), detect_tables=False)
 
         assert len(content.blocks) == 1
         assert content.blocks[0].kind is BlockKind.TEXT
         assert content.raw_tables == []
         assert "ASIC-2026-0006798" in content.full_text
 
-    def test_max_pages_limits_pages_read(
+    def test_a_selection_limits_pages_read(
         self, sample_pdf_bytes, pdfplumber_provider, cleaner, reader_config
     ):
         reader = DocumentReader(pdfplumber_provider, cleaner, reader_config)
 
         full = reader.read(sample_pdf_bytes)
-        limited = reader.read(sample_pdf_bytes, max_pages=1)
+        limited = reader.read(sample_pdf_bytes, PageSelection.first(1))
 
         assert len(limited.blocks) <= len(full.blocks)

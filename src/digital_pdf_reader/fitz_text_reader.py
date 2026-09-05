@@ -17,22 +17,20 @@ from __future__ import annotations
 
 import fitz  # PyMuPDF
 
-from digital_pdf_reader.document_reader import _resolve_page_indices
+from digital_pdf_reader.page_selection import PageSelection
 from digital_pdf_reader.text_cleaner import TextCleaner
 
 
-def read_with_fitz(
-    raw_bytes: bytes, max_pages: int | None = None, pages: list[int] | None = None
-) -> str:
+def read_with_fitz(raw_bytes: bytes, selection: PageSelection | None = None) -> str:
     """Read plain text from a PDF via PyMuPDF. Returns "" on any failure --
     callers reach this only after the primary pdfplumber reader already
     failed or returned empty, so there's nothing further to fall back to."""
+    selection = selection or PageSelection()
     cleaner = TextCleaner()
     try:
         doc = fitz.open(stream=raw_bytes, filetype="pdf")
         try:
-            indices = _resolve_page_indices(len(doc), max_pages, pages)
-            parts = [doc[index].get_text("text") for index in indices]
+            parts = [doc[index].get_text("text") for index in selection.indices(len(doc))]
         finally:
             doc.close()
     except Exception:

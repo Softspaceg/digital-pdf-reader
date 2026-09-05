@@ -14,6 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from digital_pdf_reader.blocks import BlockKind, DocumentContent, PageBlock
+from digital_pdf_reader.page_selection import PageSelection
 from digital_pdf_reader.pdfplumber_provider import PdfPlumberProvider
 from digital_pdf_reader.text_cleaner import TextCleaner
 
@@ -58,21 +59,6 @@ def _has_content(rows: list[list[str]]) -> bool:
     return any(_cell(cell) for row in rows for cell in row)
 
 
-def _resolve_page_indices(
-    page_count: int, max_pages: int | None, pages: list[int] | None
-) -> list[int]:
-    """Resolve which 0-based page indices to read.
-
-    If *pages* (1-based) is given, reads exactly those pages -- deduped,
-    sorted, out-of-range indices dropped. Otherwise reads the first
-    *max_pages* pages, or every page when *max_pages* is None.
-    """
-    if pages:
-        return sorted({page - 1 for page in pages if 1 <= page <= page_count})
-    limit = page_count if max_pages is None else min(page_count, max_pages)
-    return list(range(limit))
-
-
 class DocumentReader:
     def __init__(
         self,
@@ -87,21 +73,20 @@ class DocumentReader:
     def read(
         self,
         raw_bytes: bytes,
-        max_pages: int | None = None,
-        pages: list[int] | None = None,
+        selection: PageSelection | None = None,
         detect_tables: bool = True,
     ) -> DocumentContent:
         """Read a digital PDF into cleaned, structured content.
 
-        By default reads every page with table detection on. Pass *max_pages*/
-        *pages* to limit which pages are read, and *detect_tables=False* to
-        skip table search entirely -- a fast plain-text-only pass, e.g. for
-        callers that only need the first page.
+        By default reads every page with table detection on. Pass a
+        *selection* to limit which pages are read, and *detect_tables=False*
+        to skip table search entirely -- a fast plain-text-only pass, e.g.
+        for callers that only need the first page.
         """
+        selection = selection or PageSelection()
         blocks: list[PageBlock] = []
         with self._provider.open(raw_bytes) as pdf:
-            indices = _resolve_page_indices(len(pdf.pages), max_pages, pages)
-            for index in indices:
+            for index in selection.indices(len(pdf.pages)):
                 blocks.extend(self._read_page(pdf.pages[index], detect_tables))
         return DocumentContent(blocks=[self._clean_block(block) for block in blocks])
 
